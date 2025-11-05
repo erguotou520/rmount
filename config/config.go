@@ -159,6 +159,11 @@ func (cm *ConfigManager) SaveConfig(config *AppConfig) error {
 	return nil
 }
 
+// IsEncryptionInitialized 检查加密是否已初始化
+func (cm *ConfigManager) IsEncryptionInitialized() bool {
+	return cm.gcm != nil
+}
+
 // AddS3DataSource 添加S3数据源
 func (cm *ConfigManager) AddS3DataSource(config *AppConfig, s3Config S3Config) error {
 	// 检查名称是否已存在

@@ -10,6 +10,7 @@ import (
 
 	"rmount/config"
 	"rmount/rclone"
+	"rmount/s3"
 	gistsync "rmount/sync"
 	"rmount/system"
 )
@@ -80,6 +81,16 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) loadOrCreateConfig() error {
 	cfg, err := a.configManager.LoadConfig()
 	if err != nil {
+		// 如果是加密未初始化错误，说明配置文件已加密但未设置密码
+		if err.Error() == "加密未初始化，无法解密配置" {
+			// 创建一个空配置，等待用户设置密码
+			a.appConfig = &config.AppConfig{
+				AutoStart:      false,
+				MountDirectory: filepath.Join(os.Getenv("HOME"), "mounts"),
+				S3DataSources:  []config.S3Config{},
+			}
+			return nil
+		}
 		return err
 	}
 
@@ -106,15 +117,37 @@ func (a *App) SetMasterPassword(password string) error {
 		return fmt.Errorf("设置主密码失败: %v", err)
 	}
 
-	// 如果已有配置，迁移到新的加密配置
-	if a.appConfig != nil {
-		if err := cm.SaveConfig(a.appConfig); err != nil {
-			return fmt.Errorf("迁移配置失败: %v", err)
+	// 尝试加载已存在的加密配置
+	cfg, err := cm.LoadConfig()
+	if err != nil {
+		// 如果加载失败，使用当前配置
+		if a.appConfig != nil {
+			if err := cm.SaveConfig(a.appConfig); err != nil {
+				return fmt.Errorf("迁移配置失败: %v", err)
+			}
+		}
+	} else {
+		// 成功加载已存在的配置
+		a.appConfig = cfg
+
+		// 生成rclone配置文件
+		if len(cfg.S3DataSources) > 0 {
+			if err := a.rcloneManager.GenerateRcloneConfig(cfg.S3DataSources); err != nil {
+				return fmt.Errorf("生成rclone配置失败: %v", err)
+			}
 		}
 	}
 
 	a.configManager = cm
 	return nil
+}
+
+// IsPasswordSet 检查是否已设置主密码
+func (a *App) IsPasswordSet() bool {
+	a.configMutex.RLock()
+	defer a.configMutex.RUnlock()
+
+	return a.configManager != nil && a.configManager.IsEncryptionInitialized()
 }
 
 // AddS3DataSource 添加S3数据源
@@ -172,12 +205,57 @@ func (a *App) TestS3Connection(name, endpoint, accessKey, secretKey, region, buc
 		Bucket:    bucket,
 	}
 
-	return a.rcloneManager.TestConnection(s3Config)
+	// 使用新的S3客户端
+	s3Client, err := s3.NewS3Client(s3Config)
+	if err != nil {
+		return fmt.Errorf("创建S3客户端失败: %v", err)
+	}
+
+	return s3Client.TestConnection(bucket)
 }
 
 // ListFiles 列出文件
 func (a *App) ListFiles(s3Name, remotePath string) ([]rclone.FileInfo, error) {
-	return a.rcloneManager.ListFiles(s3Name, remotePath)
+	a.configMutex.RLock()
+	defer a.configMutex.RUnlock()
+
+	// 查找S3配置
+	var targetConfig *config.S3Config
+	for _, config := range a.appConfig.S3DataSources {
+		if config.Name == s3Name {
+			targetConfig = &config
+			break
+		}
+	}
+
+	if targetConfig == nil {
+		return nil, fmt.Errorf("未找到S3配置: %s", s3Name)
+	}
+
+	// 使用新的S3客户端
+	s3Client, err := s3.NewS3Client(*targetConfig)
+	if err != nil {
+		return nil, fmt.Errorf("创建S3客户端失败: %v", err)
+	}
+
+	s3Files, err := s3Client.ListFiles(targetConfig.Bucket, remotePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为rclone.FileInfo格式
+	var rcloneFiles []rclone.FileInfo
+	for _, file := range s3Files {
+		rcloneFiles = append(rcloneFiles, rclone.FileInfo{
+			Name:    file.Name,
+			Path:    file.Path,
+			Size:    file.Size,
+			ModTime: file.ModTime,
+			IsDir:   file.IsDir,
+		})
+	}
+
+	return rcloneFiles, nil
 }
 
 // Mount 挂载S3到本地
@@ -261,15 +339,24 @@ func (a *App) SetGistConfig(apiToken, gistID string) error {
 		return fmt.Errorf("配置未初始化")
 	}
 
+	// 检查加密是否已初始化
+	if !a.configManager.IsEncryptionInitialized() {
+		return fmt.Errorf("请先设置主密码后再保存配置")
+	}
+
 	a.appConfig.GistAPIToken = apiToken
 	a.appConfig.GistID = gistID
 
 	// 初始化Gist同步
 	if apiToken != "" {
 		a.gistSync = gistsync.NewGistSync(apiToken)
+		// 测试访问权限，但不阻止配置保存
 		if err := a.gistSync.TestGistAccess(); err != nil {
-			return fmt.Errorf("Gist访问权限测试失败: %v", err)
+			// 记录警告但不返回错误，允许用户保存配置
+			fmt.Printf("警告: Gist访问权限测试失败，但配置已保存: %v\n", err)
 		}
+	} else {
+		a.gistSync = nil
 	}
 
 	return a.configManager.SaveConfig(a.appConfig)
@@ -315,6 +402,32 @@ func (a *App) SetAutoStart(enabled bool) error {
 
 	a.appConfig.AutoStart = enabled
 	return a.configManager.SaveConfig(a.appConfig)
+}
+
+// GetGistConfig 获取Gist配置
+func (a *App) GetGistConfig() (apiToken, gistID string, hasToken bool, err error) {
+	a.configMutex.RLock()
+	defer a.configMutex.RUnlock()
+
+	if a.appConfig == nil {
+		return "", "", false, fmt.Errorf("配置未初始化")
+	}
+
+	// 只返回token是否存在和脱敏信息，不返回实际token
+	hasToken = a.appConfig.GistAPIToken != ""
+	apiToken = ""
+	if hasToken {
+		// 返回脱敏的token信息（显示前4位和后4位）
+		token := a.appConfig.GistAPIToken
+		if len(token) > 8 {
+			apiToken = token[:4] + "..." + token[len(token)-4:]
+		} else {
+			apiToken = "已设置"
+		}
+	}
+	gistID = a.appConfig.GistID
+
+	return apiToken, gistID, hasToken, nil
 }
 
 // IsAutoStartEnabled 检查是否启用自启动

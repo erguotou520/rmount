@@ -2,6 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useHistory } from 'react-router-dom';
 import { ListFiles } from '../../wailsjs/go/main/App';
 
+// shadcn/ui components
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+
+// Icons
+import { FolderOpen, File, ArrowLeft, Download, AlertCircle, HardDrive } from 'lucide-react';
+
 function FileBrowser() {
   const { name } = useParams();
   const history = useHistory();
@@ -29,7 +38,16 @@ function FileBrowser() {
 
   const handleFileClick = (file) => {
     if (file.IsDir) {
-      const newPath = currentPath ? `${currentPath}/${file.Name}` : file.Name;
+      // 构建新路径，确保路径格式正确
+      let newPath;
+      if (currentPath) {
+        // 移除末尾的斜杠，然后添加新的文件夹名
+        const cleanPath = currentPath.endsWith('/') ? currentPath.slice(0, -1) : currentPath;
+        newPath = `${cleanPath}/${file.Name}`;
+      } else {
+        newPath = file.Name;
+      }
+      console.log('Navigating to path:', newPath);
       setCurrentPath(newPath);
     } else {
       // 处理文件点击，可以预览或下载
@@ -41,7 +59,9 @@ function FileBrowser() {
     if (currentPath) {
       const parts = currentPath.split('/');
       parts.pop();
-      setCurrentPath(parts.join('/'));
+      const parentPath = parts.join('/');
+      console.log('Going back to path:', parentPath || '/');
+      setCurrentPath(parentPath);
     } else {
       history.push('/data-sources');
     }
@@ -63,122 +83,111 @@ function FileBrowser() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
-          <h1 className="text-3xl font-bold text-white">文件浏览器</h1>
-          <span className="text-gray-400">{name}</span>
+          <h1 className="text-3xl font-bold">文件浏览器</h1>
+          <Badge variant="secondary">{name}</Badge>
         </div>
         <div className="flex items-center space-x-2">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleBackClick}
-            className="text-gray-300 hover:text-white"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="text-sm text-gray-400">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            返回
+          </Button>
+          <div className="text-sm text-muted-foreground font-mono">
             {currentPath || '/'}
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-600 text-white p-4 rounded-lg">
-          {error}
-        </div>
+        <Card className="border-destructive/50 bg-destructive/10">
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <span>{error}</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="bg-gray-800 shadow overflow-hidden rounded-lg">
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="text-gray-400">加载中...</div>
-          </div>
-        ) : files.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
-            <svg className="mx-auto h-12 w-12 text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <p>此目录为空</p>
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-700">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  名称
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  大小
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  修改时间
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  类型
-                </th>
-                <th className="relative px-6 py-3">
-                  <span className="sr-only">操作</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-gray-800 divide-y divide-gray-700">
-              {files.map((file, index) => (
-                <tr
-                  key={index}
-                  className="hover:bg-gray-700 cursor-pointer"
-                  onClick={() => handleFileClick(file)}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      {file.IsDir ? (
-                        <svg className="h-5 w-5 text-yellow-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                        </svg>
-                      ) : (
-                        <svg className="h-5 w-5 text-gray-400 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      <span className="text-sm font-medium text-white">{file.Name}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-300">
-                      {file.IsDir ? '--' : formatFileSize(file.Size)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-300">
-                      {formatDate(file.ModTime)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      file.IsDir ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-600 text-gray-100'
-                    }`}>
-                      {file.IsDir ? '文件夹' : (file.MimeType || '文件')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {!file.IsDir && (
-                      <div className="flex justify-end space-x-2">
-                        <button
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-muted-foreground">加载中...</div>
+            </div>
+          ) : files.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <HardDrive className="mx-auto h-12 w-12 mb-3 opacity-50" />
+              <p>此目录为空</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>名称</TableHead>
+                  <TableHead>大小</TableHead>
+                  <TableHead>修改时间</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {files.map((file, index) => (
+                  <TableRow
+                    key={index}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleFileClick(file)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {file.IsDir ? (
+                          <FolderOpen className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <File className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="font-medium">{file.Name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {file.IsDir ? '--' : formatFileSize(file.Size)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {formatDate(file.ModTime)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={file.IsDir ? 'secondary' : 'outline'}>
+                        {file.IsDir ? '文件夹' : (file.MimeType || '文件')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {!file.IsDir && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             // 处理下载
+                            console.log('Download file:', file);
                           }}
-                          className="text-blue-400 hover:text-blue-300"
                         >
-                          下载
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

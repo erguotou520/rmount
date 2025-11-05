@@ -6,6 +6,10 @@ export function AddS3DataSource(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['AddS3DataSource'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function GetGistConfig() {
+  return window['go']['main']['App']['GetGistConfig']();
+}
+
 export function GetMounts() {
   return window['go']['main']['App']['GetMounts']();
 }
@@ -16,6 +20,10 @@ export function GetS3DataSources() {
 
 export function IsAutoStartEnabled() {
   return window['go']['main']['App']['IsAutoStartEnabled']();
+}
+
+export function IsPasswordSet() {
+  return window['go']['main']['App']['IsPasswordSet']();
 }
 
 export function ListFiles(arg1, arg2) {

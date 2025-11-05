@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Switch, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Switch, Link, useLocation } from 'react-router-dom';
 import './App.css';
 
 // shadcn/ui components
@@ -15,12 +15,70 @@ import DataSourceForm from './components/DataSourceForm';
 import FileBrowser from './components/FileBrowser';
 import MountManager from './components/MountManager';
 import Settings from './components/Settings';
+import SetPassword from './components/SetPassword';
 
 // Wails API
 import { SetMasterPassword, GetS3DataSources, IsAutoStartEnabled } from '../wailsjs/go/main/App';
 
 // Icons
 import { Cloud, FolderOpen, Settings as SettingsIcon, Home, Lock, Server } from 'lucide-react';
+
+function Navigation() {
+  const location = useLocation();
+
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
+
+  return (
+    <nav className="flex items-center space-x-6 text-sm font-medium">
+      <Link
+        to="/"
+        className={`transition-colors flex items-center space-x-1 ${
+          isActive('/')
+            ? 'text-foreground'
+            : 'text-foreground/60 hover:text-foreground/80'
+        }`}
+      >
+        <Home className="h-4 w-4" />
+        <span>仪表盘</span>
+      </Link>
+      <Link
+        to="/data-sources"
+        className={`transition-colors flex items-center space-x-1 ${
+          isActive('/data-sources') || location.pathname.startsWith('/data-sources/')
+            ? 'text-foreground'
+            : 'text-foreground/60 hover:text-foreground/80'
+        }`}
+      >
+        <Server className="h-4 w-4" />
+        <span>数据源</span>
+      </Link>
+      <Link
+        to="/mounts"
+        className={`transition-colors flex items-center space-x-1 ${
+          isActive('/mounts')
+            ? 'text-foreground'
+            : 'text-foreground/60 hover:text-foreground/80'
+        }`}
+      >
+        <FolderOpen className="h-4 w-4" />
+        <span>挂载管理</span>
+      </Link>
+      <Link
+        to="/settings"
+        className={`transition-colors flex items-center space-x-1 ${
+          isActive('/settings')
+            ? 'text-foreground'
+            : 'text-foreground/60 hover:text-foreground/80'
+        }`}
+      >
+        <SettingsIcon className="h-4 w-4" />
+        <span>设置</span>
+      </Link>
+    </nav>
+  );
+}
 
 function App() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -110,42 +168,15 @@ function App() {
     <Router>
       <div className="min-h-screen">
         {/* 导航栏 */}
-        <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-16 items-center justify-between">
-            <div className="flex items-center space-x-2">
+        <header className="border-b border-white/10 bg-background/80 backdrop-blur-md px-4" style={{ WebkitAppRegion: 'drag', WebkitUserSelect: 'none' }}>
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center space-x-2" style={{ WebkitAppRegion: 'drag', WebkitUserSelect: 'none' }}>
               <Cloud className="h-6 w-6 text-primary" />
               <h1 className="text-xl font-semibold">RMount</h1>
             </div>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
-              <Link
-                to="/"
-                className="transition-colors hover:text-foreground/80 text-foreground/60 flex items-center space-x-1"
-              >
-                <Home className="h-4 w-4" />
-                <span>仪表盘</span>
-              </Link>
-              <Link
-                to="/data-sources"
-                className="transition-colors hover:text-foreground/80 text-foreground/60 flex items-center space-x-1"
-              >
-                <Server className="h-4 w-4" />
-                <span>数据源</span>
-              </Link>
-              <Link
-                to="/mounts"
-                className="transition-colors hover:text-foreground/80 text-foreground/60 flex items-center space-x-1"
-              >
-                <FolderOpen className="h-4 w-4" />
-                <span>挂载管理</span>
-              </Link>
-              <Link
-                to="/settings"
-                className="transition-colors hover:text-foreground/80 text-foreground/60 flex items-center space-x-1"
-              >
-                <SettingsIcon className="h-4 w-4" />
-                <span>设置</span>
-              </Link>
-            </nav>
+            <div className="flex items-center space-x-4" style={{ WebkitAppRegion: 'no-drag' }}>
+              <Navigation />
+            </div>
           </div>
         </header>
 
@@ -158,6 +189,7 @@ function App() {
             <Route path="/data-sources/:name/browse" component={FileBrowser} />
             <Route path="/mounts" component={MountManager} />
             <Route path="/settings" component={Settings} />
+            <Route path="/set-password" component={SetPassword} />
           </Switch>
         </main>
       </div>

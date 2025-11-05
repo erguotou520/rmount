@@ -5,11 +5,15 @@ import {config} from '../models';
 
 export function AddS3DataSource(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<void>;
 
+export function GetGistConfig():Promise<string>;
+
 export function GetMounts():Promise<Array<rclone.MountInfo>>;
 
 export function GetS3DataSources():Promise<Array<config.S3Config>>;
 
 export function IsAutoStartEnabled():Promise<boolean>;
+
+export function IsPasswordSet():Promise<boolean>;
 
 export function ListFiles(arg1:string,arg2:string):Promise<Array<rclone.FileInfo>>;
 
